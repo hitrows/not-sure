@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>Not Sure 0.8.0</title>
+
+    <!-- Readme pane. readme.txt is README-BETA.md, staged by build-installer.sh. -->
+    <readme file="readme.txt" mime-type="text/plain"/>
+
+    <!-- macOS 10.15 or later. -->
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="10.15"/>
+        </allowed-os-versions>
+    </volume-check>
+
+    <!-- One path only: no customise pane, no destination choice, system volume. -->
+    <options customize="never" require-scripts="false" rootVolumeOnly="true"/>
+
+    <choices-outline>
+        <line choice="default">
+            <line choice="com.hitrows.notsure.plugins"/>
+            <line choice="com.hitrows.notsure.presets"/>
+        </line>
+    </choices-outline>
+
+    <choice id="default"/>
+    <choice id="com.hitrows.notsure.plugins" visible="false">
+        <pkg-ref id="com.hitrows.notsure.plugins"/>
+    </choice>
+    <choice id="com.hitrows.notsure.presets" visible="false">
+        <pkg-ref id="com.hitrows.notsure.presets"/>
+    </choice>
+
+    <pkg-ref id="com.hitrows.notsure.plugins" version="0.8.0">plugins.pkg</pkg-ref>
+    <pkg-ref id="com.hitrows.notsure.presets" version="0.8.0">presets.pkg</pkg-ref>
+</installer-gui-script>
