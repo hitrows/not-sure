@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "PluginProcessor.h"
+#include "UpdateChecker.h"
 
 // ---------------------------------------------------------------------------
 // Pointer-only look and feel.
@@ -31,7 +32,8 @@ public:
 // components that redraw only themselves. No text is drawn - the artwork carries
 // all lettering.
 // ---------------------------------------------------------------------------
-class NotSureEditor final : public juce::AudioProcessorEditor
+class NotSureEditor final : public juce::AudioProcessorEditor,
+                            private juce::ChangeListener
 {
 public:
     explicit NotSureEditor (NotSureProcessor&);
@@ -42,6 +44,10 @@ public:
 
 private:
     using SliderAtt = juce::AudioProcessorValueTreeState::SliderAttachment;
+
+    // Update notice: an overlay drawn only when a newer version is known.
+    void changeListenerCallback (juce::ChangeBroadcaster*) override;
+    void refreshUpdateNotice();
 
     static constexpr float designWidth  = 1792.0f;
     static constexpr float designHeight =  592.0f;
@@ -72,6 +78,12 @@ private:
         juce::Rectangle<int>             design;
     };
     std::vector<Tile> tiles;
+
+    // "New version" overlay + its click target (design space). Not part of the
+    // cached background: it may arrive after resized() has run, so it is drawn
+    // in paint() and only its own rectangle is repainted when the result lands.
+    juce::Image newver;
+    std::unique_ptr<juce::Component> updateLink;
 
     juce::ComponentBoundsConstrainer constrainer;
 

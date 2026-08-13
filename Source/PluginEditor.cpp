@@ -30,6 +30,11 @@ namespace layout
     const juce::Rectangle<int> lampTile   { 1442, 115, 79, 79 };
     const juce::Rectangle<int> bypassTile { 1572, 108, 64, 101 };
 
+    // Click target for the update notice: the red lettering (x737..1052,
+    // y99..118) plus a comfortable vertical margin, staying inside the scratched
+    // area of newver.png so nothing looks off.
+    const juce::Rectangle<int> noticeRect { 732, 87, 326, 44 };
+
     // Positions.
     enum Position { left = 0, centre = 1, right = 2 };
 }
@@ -40,6 +45,23 @@ namespace
     {
         return (design.toFloat() * scale).toNearestInt();
     }
+
+    // Transparent hit area over the update-notice lettering: a pointing-hand
+    // cursor and a click that runs onClick. The lettering itself is drawn by the
+    // editor from the overlay image; this only handles interaction.
+    class UpdateLink final : public juce::Component
+    {
+    public:
+        std::function<void()> onClick;
+
+        UpdateLink() { setMouseCursor (juce::MouseCursor::PointingHandCursor); }
+
+        void mouseUp (const juce::MouseEvent& e) override
+        {
+            if (onClick != nullptr && getLocalBounds().contains (e.getPosition()))
+                onClick();
+        }
+    };
 }
 
 // ===========================================================================
@@ -304,6 +326,23 @@ NotSureEditor::NotSureEditor (NotSureProcessor& p)
                  off, true, "bypass"),
              layout::bypassTile);
 
+    // --- update notice ------------------------------------------------------
+    newver = juce::ImageCache::getFromMemory (BinaryData::newver_png, BinaryData::newver_pngSize);
+
+    updateLink = std::make_unique<UpdateLink>();
+    static_cast<UpdateLink*> (updateLink.get())->onClick = []
+    {
+        juce::URL (notsure::UpdateChecker::getInstance().getDownloadUrl()).launchInDefaultBrowser();
+    };
+    addChildComponent (*updateLink);   // hidden until an update is known
+
+    // One shared check per launch, kicked off on the first editor open - never
+    // in the processor constructor, so a plugin scan makes no network traffic.
+    auto& checker = notsure::UpdateChecker::getInstance();
+    checker.addChangeListener (this);
+    checker.start (JucePlugin_VersionString);
+    refreshUpdateNotice();
+
     // --- window -------------------------------------------------------------
     constrainer.setFixedAspectRatio ((double) designWidth / (double) designHeight);
     constrainer.setSizeLimits (700, (int) std::round (700.0f * designHeight / designWidth),
@@ -316,8 +355,30 @@ NotSureEditor::NotSureEditor (NotSureProcessor& p)
 
 NotSureEditor::~NotSureEditor()
 {
+    notsure::UpdateChecker::getInstance().removeChangeListener (this);
+
     for (auto& k : knobs)
         k.setLookAndFeel (nullptr);
+}
+
+void NotSureEditor::changeListenerCallback (juce::ChangeBroadcaster*)
+{
+    refreshUpdateNotice();
+}
+
+void NotSureEditor::refreshUpdateNotice()
+{
+    const bool available = notsure::UpdateChecker::getInstance().isUpdateAvailable();
+
+    if (updateLink != nullptr)
+    {
+        updateLink->setVisible (available);
+        updateLink->setInterceptsMouseClicks (available, available);
+    }
+
+    // Repaint only the notice's rectangle, not the whole editor.
+    const float scale = (float) getWidth() / designWidth;
+    repaint (scaled (layout::noticeRect, scale));
 }
 
 void NotSureEditor::rebuildBackground()
@@ -344,6 +405,13 @@ void NotSureEditor::paint (juce::Graphics& g)
         g.drawImageAt (cachedBackground, 0, 0);
     else
         g.fillAll (juce::Colour (0xff9a9a98));
+
+    // The "new version" overlay composites at the same 1792x592 scale as the
+    // panel, so no offset maths. Drawn only when an update is known; when there
+    // is none the panel looks exactly as it does today.
+    if (newver.isValid() && notsure::UpdateChecker::getInstance().isUpdateAvailable())
+        g.drawImage (newver, 0, 0, getWidth(), getHeight(),
+                     0, 0, newver.getWidth(), newver.getHeight());
 }
 
 void NotSureEditor::resized()
@@ -355,6 +423,9 @@ void NotSureEditor::resized()
 
     for (auto& t : tiles)
         t.comp->setBounds (scaled (t.design, scale));
+
+    if (updateLink != nullptr)
+        updateLink->setBounds (scaled (layout::noticeRect, scale));
 
     rebuildBackground();
     repaint();

@@ -11,7 +11,7 @@ set(BUNDLE_ID           "com.hitrows.notsure")
 set(MANUFACTURER_CODE   Htrw)
 set(PLUGIN_CODE         Nsur)
 
-project(${PROJECT_NAME} VERSION 0.8.0)
+project(${PROJECT_NAME} VERSION 0.8.1)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -73,7 +73,8 @@ juce_add_binary_data(NotSureAssets
         Resources/off.png
         Resources/allleft.png
         Resources/allcenter.png
-        Resources/allright.png)
+        Resources/allright.png
+        Resources/newver.png)
 
 set_target_properties(NotSureAssets PROPERTIES
     POSITION_INDEPENDENT_CODE TRUE)
@@ -81,6 +82,7 @@ set_target_properties(NotSureAssets PROPERTIES
 target_sources(${PROJECT_NAME} PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
+    Source/UpdateChecker.cpp
     Source/dsp/LimiterCore.cpp
     Source/dsp/Oversampler.cpp)
 

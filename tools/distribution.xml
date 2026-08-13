@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
-    <title>Not Sure 0.8.0</title>
+    <title>Not Sure __VERSION__</title>
 
     <!-- Readme pane. readme.txt is README-BETA.md, staged by build-installer.sh. -->
     <readme file="readme.txt" mime-type="text/plain"/>
@@ -30,6 +30,6 @@
         <pkg-ref id="com.hitrows.notsure.presets"/>
     </choice>
 
-    <pkg-ref id="com.hitrows.notsure.plugins" version="0.8.0">plugins.pkg</pkg-ref>
-    <pkg-ref id="com.hitrows.notsure.presets" version="0.8.0">presets.pkg</pkg-ref>
+    <pkg-ref id="com.hitrows.notsure.plugins" version="__VERSION__">plugins.pkg</pkg-ref>
+    <pkg-ref id="com.hitrows.notsure.presets" version="__VERSION__">presets.pkg</pkg-ref>
 </installer-gui-script>

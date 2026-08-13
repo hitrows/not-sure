@@ -19,10 +19,14 @@
 # Usage: tools/build-installer.sh
 set -euo pipefail
 
-VERSION="0.8.0"
 CMAKE="/opt/homebrew/bin/cmake"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Single source of truth for the version: the project() line in CMakeLists.txt.
+VERSION="$(grep -oE 'VERSION [0-9]+\.[0-9]+\.[0-9]+' "$ROOT/CMakeLists.txt" | head -1 | awk '{print $2}')"
+[ -n "$VERSION" ] || { echo "error: could not read VERSION from CMakeLists.txt"; exit 1; }
+echo "==> Version $VERSION"
 BUILD="$ROOT/build"
 DIST="$ROOT/dist"
 WORK="$(mktemp -d /tmp/notsure-installer.XXXXXX)"
@@ -105,7 +109,10 @@ mkdir -p "$RES"
 cp "$ROOT/README-BETA.md" "$RES/readme.txt"
 
 mkdir -p "$DIST"
-productbuild --distribution "$ROOT/tools/distribution.xml" \
+# Substitute the version into the distribution template.
+DISTRIB="$WORK/distribution.xml"
+sed "s/__VERSION__/$VERSION/g" "$ROOT/tools/distribution.xml" > "$DISTRIB"
+productbuild --distribution "$DISTRIB" \
     --package-path "$PKGS" \
     --resources "$RES" \
     "$DIST/NotSure-$VERSION.pkg"
