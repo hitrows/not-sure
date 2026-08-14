@@ -18,7 +18,7 @@ set(PLUGIN_CODE         Nsur)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum macOS version")
 set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build architectures")
 
-project(${PROJECT_NAME} VERSION 0.8.3)
+project(${PROJECT_NAME} VERSION 0.8.4)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -119,6 +119,45 @@ add_executable(notsure-render
 target_include_directories(notsure-render PRIVATE Source/dsp)
 
 set_target_properties(notsure-render PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY         "${CMAKE_BINARY_DIR}/tools"
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG   "${CMAKE_BINARY_DIR}/tools"
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/tools"
+    XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED NO)
+
+# ---------------------------------------------------------------------------
+# notsure-state-test
+#
+# Feeds NotSureProcessor::setStateInformation malformed/foreign/future blocks
+# for real (STATE-VERSION-SPEC.md part 1, acceptance 1-4) instead of reasoning
+# about it. Needs the real processor + APVTS, so unlike notsure-render it can't
+# stay JUCE-free - it recompiles the same sources into a console executable
+# (no plugin-format wrapper, our own main()). juce_add_plugin() sets every
+# JucePlugin_* macro as COMPILE_DEFINITIONS on ${PROJECT_NAME}; copy that
+# property here rather than hand-picking the subset we think we need, which
+# would silently drift from the real plugin build.
+# ---------------------------------------------------------------------------
+add_executable(notsure-state-test
+    tools/test-state.cpp
+    Source/PluginProcessor.cpp
+    Source/PluginEditor.cpp
+    Source/UpdateChecker.cpp
+    Source/dsp/LimiterCore.cpp
+    Source/dsp/Oversampler.cpp)
+
+target_compile_definitions(notsure-state-test PRIVATE
+    $<TARGET_PROPERTY:${PROJECT_NAME},COMPILE_DEFINITIONS>)
+
+target_link_libraries(notsure-state-test
+    PRIVATE
+        NotSureAssets
+        juce::juce_audio_utils
+        juce::juce_dsp
+    PUBLIC
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_lto_flags
+        juce::juce_recommended_warning_flags)
+
+set_target_properties(notsure-state-test PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY         "${CMAKE_BINARY_DIR}/tools"
     RUNTIME_OUTPUT_DIRECTORY_DEBUG   "${CMAKE_BINARY_DIR}/tools"
     RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/tools"

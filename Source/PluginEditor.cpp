@@ -35,6 +35,11 @@ namespace layout
     // area of newver.png so nothing looks off.
     const juce::Rectangle<int> noticeRect { 732, 87, 326, 44 };
 
+    // Bottom-right corner screw, per STATE-VERSION-SPEC.md part 2: centre
+    // (1715, 530), radius 30. Square bounding box for setBounds(); the hit
+    // area itself is the inscribed circle (see VersionScrew::hitTest below).
+    const juce::Rectangle<int> versionScrewTile { 1715 - 30, 530 - 30, 60, 60 };
+
     // Positions.
     enum Position { left = 0, centre = 1, right = 2 };
 }
@@ -60,6 +65,26 @@ namespace
         {
             if (onClick != nullptr && getLocalBounds().contains (e.getPosition()))
                 onClick();
+        }
+    };
+
+    // Bottom-right screw: hovering it shows the plugin version as a tooltip.
+    // A small easter egg, not a control - no cursor change, nothing painted,
+    // no click behaviour. The hit area is the circle inscribed in the tile,
+    // not the square tile itself: the panel corner and the window's own
+    // resize edge are close by here, and a square would steal clicks meant
+    // for the edge.
+    class VersionScrew final : public juce::Component,
+                               public juce::TooltipClient
+    {
+    public:
+        juce::String getTooltip() override { return JucePlugin_VersionString; }
+
+        bool hitTest (int x, int y) override
+        {
+            const juce::Point<float> centre ((float) getWidth() * 0.5f, (float) getHeight() * 0.5f);
+            const float radius = juce::jmin ((float) getWidth(), (float) getHeight()) * 0.5f;
+            return centre.getDistanceFrom ({ (float) x, (float) y }) <= radius;
         }
     };
 }
@@ -347,6 +372,10 @@ NotSureEditor::NotSureEditor (NotSureProcessor& p)
     };
     addChildComponent (*updateLink);   // hidden until an update is known
 
+    // --- version screw -------------------------------------------------------
+    versionScrew = std::make_unique<VersionScrew>();
+    addAndMakeVisible (*versionScrew);
+
     // One shared check per launch, kicked off on the first editor open - never
     // in the processor constructor, so a plugin scan makes no network traffic.
     auto& checker = notsure::UpdateChecker::getInstance();
@@ -437,6 +466,9 @@ void NotSureEditor::resized()
 
     if (updateLink != nullptr)
         updateLink->setBounds (scaled (layout::noticeRect, scale));
+
+    if (versionScrew != nullptr)
+        versionScrew->setBounds (scaled (layout::versionScrewTile, scale));
 
     rebuildBackground();
     repaint();

@@ -1,6 +1,14 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+namespace
+{
+    // See getStateInformation/setStateInformation: the shape of the saved
+    // state, not the plugin version. Bump only when a future shape needs to
+    // be told apart from this one to migrate between them.
+    constexpr int kStateSchema = 1;
+}
+
 NotSureProcessor::NotSureProcessor()
     : AudioProcessor (BusesProperties()
                           .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
@@ -145,14 +153,66 @@ juce::AudioProcessorParameter* NotSureProcessor::getBypassParameter() const
 void NotSureProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     if (auto xml = apvts.copyState().createXml())
+    {
+        // Schema of the state shape itself (not the plugin version - the same
+        // schema can span several point releases). Bump this only when a
+        // future version needs to tell old and new state apart to migrate
+        // between them; nothing does yet, so every state written so far is
+        // schema 1. See the read side in setStateInformation for why this
+        // exists.
+        xml->setAttribute ("stateSchema", kStateSchema);
+
+        // Diagnostics only, never read back - makes bug reports readable.
+        xml->setAttribute ("pluginVersion", JucePlugin_VersionString);
+
         copyXmlToBinary (*xml, destData);
+    }
 }
 
 void NotSureProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    if (auto xml = getXmlFromBinary (data, sizeInBytes))
-        if (xml->hasTagName (apvts.state.getType()))
-            apvts.replaceState (juce::ValueTree::fromXml (*xml));
+    // Covers an empty block, random bytes, and a truncated block: JUCE's own
+    // parser already returns nullptr for all three (no magic number, or a cut
+    // string that fails to parse as XML), and a tag mismatch covers a valid
+    // XML document that just isn't ours (a different plugin, or garbage that
+    // happens to parse). Bail out silently and leave the current state alone
+    // rather than half-apply anything.
+    auto xml = getXmlFromBinary (data, sizeInBytes);
+    if (xml == nullptr || ! xml->hasTagName (apvts.state.getType()))
+        return;
+
+    // No stateSchema attribute means this state predates 0.8.4 (schema 1 was
+    // never written before it existed) - treat it as schema 1, which is
+    // exactly what it is. A schema newer than we understand should still load
+    // what it recognises rather than refuse outright, so someone opening a
+    // project made on a future build gets their parameters back instead of a
+    // reset plugin. There is nothing to migrate between schemas yet; this is
+    // the branch point for when there is.
+    const int schema = xml->getIntAttribute ("stateSchema", kStateSchema);
+    juce::ignoreUnused (schema);
+
+    auto newState = juce::ValueTree::fromXml (*xml);
+    if (! newState.isValid())
+        return;
+
+    // Clamp every incoming value into its parameter's current range before
+    // adopting the tree. The XML could be hand-edited, truncated in a way
+    // that still parses, or (via stateSchema) written by a future build with
+    // a wider range than this one knows about.
+    for (auto child : newState)
+    {
+        if (! child.hasType ("PARAM"))
+            continue;
+
+        auto* param = apvts.getParameter (child.getProperty ("id").toString());
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (param))
+        {
+            const float value = child.getProperty ("value", 0.0f);
+            child.setProperty ("value", ranged->getNormalisableRange().snapToLegalValue (value), nullptr);
+        }
+    }
+
+    apvts.replaceState (newState);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

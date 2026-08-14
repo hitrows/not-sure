@@ -85,6 +85,10 @@ private:
     juce::Image newver;
     std::unique_ptr<juce::Component> updateLink;
 
+    // Bottom-right screw: hover shows the plugin version. See VersionScrew in
+    // PluginEditor.cpp and STATE-VERSION-SPEC.md part 2.
+    std::unique_ptr<juce::Component> versionScrew;
+
     juce::ComponentBoundsConstrainer constrainer;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NotSureEditor)
