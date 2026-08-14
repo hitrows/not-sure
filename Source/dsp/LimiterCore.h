@@ -32,8 +32,10 @@ public:
         float attackMs = 1.3f;    // 0.3 / 1.3 / 4.0
         float mix      = 100.0f;  // 0..100 %
         float trimDb   = 0.0f;    // -24..+24
-        int   quality  = 4;       // oversampling factor: 1, 2 or 4
+        int   quality  = 4;       // requested oversampling factor: 1, 2 or 4
         bool  autoGain = true;    // compensate loudness for crush and crunch
+        bool  offline  = false;   // host is rendering: run the highest factor the
+                                  // sample-rate cap allows (unless quality is 1)
 
         // Defaulted so setParams can skip the coefficient recompute when a block
         // brings no change. Written as = default to keep the memberwise float
@@ -51,9 +53,15 @@ public:
     // In-place. Pass the same pointer twice for mono.
     void process (float* left, float* right, int numSamples);
 
-    // Base-rate samples introduced by the oversampler. Report this to the host
-    // and expect it to change when quality changes.
-    int getLatencySamples() const noexcept { return oversamplerL.getLatencySamples(); }
+    // Always the maximum, whatever factor is running: the wet path is padded and
+    // the dry delay extended so the total never moves. A fixed latency means the
+    // host never re-aligns the track, and an offline bounce cannot land off by a
+    // few samples when the factor changes mid-render. Report it once.
+    int getLatencySamples() const noexcept { return kFixedLatency; }
+
+    // The factor actually running after the sample-rate cap and offline boost -
+    // may differ from the requested quality. For the Quality tooltip.
+    int getEffectiveFactor() const noexcept { return oversamplerL.getFactor(); }
 
     // For a future meter. Negative dB, 0 means no reduction.
     float getGainReductionDb() const noexcept { return gainReductionDb; }
@@ -61,6 +69,15 @@ public:
 private:
     void updateCoefficients();
     void updateReleaseCoefficient();
+
+    // Ceiling on the oversampling factor by sample rate: at a high enough rate
+    // there is little left to fold, so 4x spends CPU for nothing. Downward only.
+    static int capForSampleRate (double sr) noexcept
+    {
+        if (sr <  64000.0) return 4;   // below 64 kHz
+        if (sr <= 128000.0) return 2;  // 64 to 128 kHz
+        return 1;                      // above 128 kHz
+    }
 
     // --- fixed design constants ---------------------------------------------
 
@@ -119,6 +136,10 @@ private:
     // Comfortably larger than the longest oversampler latency (36).
     static constexpr int kMaxLatency = 64;
 
+    // The latency reported to the host, always. Equals the 4x oversampler
+    // latency; lower factors are padded up to it. 0.8 ms at 44.1 kHz.
+    static constexpr int kFixedLatency = 36;
+
     // Gains that multiply the signal ramp toward their targets over this time,
     // so moving a knob or loading a preset does not click.
     static constexpr float kSmoothingSec = 0.02f;
@@ -176,11 +197,16 @@ private:
     float dcX1L = 0.0f, dcY1L = 0.0f;
     float dcX1R = 0.0f, dcY1R = 0.0f;
 
-    // The dry path must be delayed to match the oversampler, or Mix below
-    // 100% comb-filters the top end.
+    // Both paths are delayed to a fixed total latency (kFixedLatency): the dry
+    // by the full amount, the wet by whatever the oversampler did not already
+    // add. This keeps Mix phase-aligned and the reported latency constant.
     float dryDelayL[kMaxLatency] {};
     float dryDelayR[kMaxLatency] {};
     int   dryWritePos = 0;
+
+    float wetDelayL[kMaxLatency] {};
+    float wetDelayR[kMaxLatency] {};
+    int   wetWritePos = 0;
 };
 
 } // namespace notsure

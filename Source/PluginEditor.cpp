@@ -90,11 +90,17 @@ namespace
 
         ~TileBase() override { apvts.removeParameterListener (paramId, this); }
 
+        // Optional live suffix (e.g. the oversampling factor actually running).
+        std::function<juce::String()> extraTooltip;
+
         juce::String getTooltip() override
         {
+            juce::String t = name;
             if (auto* p = apvts.getParameter (paramId))
-                return name + ": " + p->getCurrentValueAsText();
-            return name;
+                t += ": " + p->getCurrentValueAsText();
+            if (extraTooltip != nullptr)
+                t += extraTooltip();
+            return t;
         }
 
     protected:
@@ -310,9 +316,14 @@ NotSureEditor::NotSureEditor (NotSureProcessor& p)
                  layout::attackTile, 3, layout::left, allLeft, allCentre, allRight, "attack"),
              layout::attackTile);
 
-    addTile (std::make_unique<SwitchControl> (processorRef.apvts, ParamID::oversampling,
-                 layout::qualityTile, 3, layout::right, allLeft, allCentre, allRight, "quality"),
-             layout::qualityTile);
+    {
+        auto q = std::make_unique<SwitchControl> (processorRef.apvts, ParamID::oversampling,
+                     layout::qualityTile, 3, layout::right, allLeft, allCentre, allRight, "quality");
+        // Discoverable rather than hidden: the tooltip shows the factor actually
+        // running after the sample-rate cap / offline boost.
+        q->extraTooltip = [this] { return " · running " + juce::String (processorRef.getEffectiveOversampling()) + "x"; };
+        addTile (std::move (q), layout::qualityTile);
+    }
 
     addTile (std::make_unique<SwitchControl> (processorRef.apvts, ParamID::autoGain,
                  layout::autogainTile, 2, layout::right, allLeft, allCentre, allRight, "auto gain"),

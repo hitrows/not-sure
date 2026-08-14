@@ -11,14 +11,17 @@ set(BUNDLE_ID           "com.hitrows.notsure")
 set(MANUFACTURER_CODE   Htrw)
 set(PLUGIN_CODE         Nsur)
 
-project(${PROJECT_NAME} VERSION 0.8.1)
+# Deployment target and architectures MUST be set BEFORE project(): project()
+# initialises these as cache variables, and a later set(... CACHE ...) without
+# FORCE is ignored. Setting them after left the cache entry empty and the build
+# arm64-only - Intel testers could not run it at all.
+set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum macOS version")
+set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build architectures")
+
+project(${PROJECT_NAME} VERSION 0.8.3)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# Universal binary so the plugin runs native on both Apple Silicon and Intel.
-set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum macOS version")
-set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build architectures")
 
 # ---------------------------------------------------------------------------
 # JUCE. FetchContent clones it into the build dir, so nothing is vendored

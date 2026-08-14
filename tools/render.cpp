@@ -33,6 +33,8 @@ namespace
             << "  --darkness <0..10>   post-distortion tilt      (default 0)\n"
             << "  --autogain <0|1>     loudness compensation     (default 1)\n"
             << "  --quality <1|2|4>     oversampling; 1 aliases   (default 4)\n"
+            << "  --offline            simulate an offline bounce (max factor)\n"
+            << "  --rate <hz>          override the processing sample rate\n"
             << "  --sweep  <param> <from> <to> <steps>\n"
             << "                        render one file per value; output names\n"
             << "                        get a numeric suffix\n";
@@ -52,12 +54,18 @@ namespace
 
     bool renderOnce (const wavio::AudioFile& source,
                      const notsure::LimiterCore::Params& params,
-                     const std::string& outPath)
+                     const std::string& outPath,
+                     double rateOverride = 0.0)
     {
         wavio::AudioFile result = source;
 
+        // --rate overrides the sample rate the core runs at, so the sample-rate
+        // oversampling cap can be exercised without needing files at 96/192 kHz.
+        const double rate = rateOverride > 0.0 ? rateOverride
+                                               : static_cast<double> (source.sampleRate);
+
         notsure::LimiterCore core;
-        core.prepare (static_cast<double> (source.sampleRate));
+        core.prepare (rate);
         core.setParams (params);
 
         // Process in blocks so the console path exercises the same code path a
@@ -81,7 +89,14 @@ namespace
             return false;
         }
 
-        std::cout << "wrote " << outPath << "\n";
+        // Report the factor actually running (after cap + offline boost) and the
+        // fixed latency, so Parts 1-6 of OVERSAMPLING-SPEC can be verified here.
+        std::cout << "wrote " << outPath
+                  << "  [rate " << (long) rate << " Hz"
+                  << ", quality " << params.quality << "x"
+                  << (params.offline ? ", offline" : "")
+                  << " -> running " << core.getEffectiveFactor() << "x"
+                  << ", latency " << core.getLatencySamples() << "]\n";
         return true;
     }
 }
@@ -102,6 +117,7 @@ int main (int argc, char** argv)
     std::string sweepParam;
     float sweepFrom = 0.0f, sweepTo = 0.0f;
     int sweepSteps = 0;
+    double rateOverride = 0.0;
 
     for (int i = 3; i < argc; ++i)
     {
@@ -117,6 +133,8 @@ int main (int argc, char** argv)
         else if (arg == "--darkness") params.darkness = nextFloat();
         else if (arg == "--autogain") params.autoGain = (nextFloat() != 0.0f);
         else if (arg == "--quality") params.quality = static_cast<int> (nextFloat());
+        else if (arg == "--offline") params.offline = true;
+        else if (arg == "--rate")    rateOverride  = static_cast<double> (nextFloat());
         else if (arg == "--sag")    params.sag      = nextFloat();
         else if (arg == "--attack") params.attackMs = nextFloat();
         else if (arg == "--mix")    params.mix      = nextFloat();
@@ -181,12 +199,12 @@ int main (int argc, char** argv)
                 return 1;
             }
 
-            ok = renderOnce (source, params, suffixed (outPath, step, value)) && ok;
+            ok = renderOnce (source, params, suffixed (outPath, step, value), rateOverride) && ok;
         }
     }
     else
     {
-        ok = renderOnce (source, params, outPath);
+        ok = renderOnce (source, params, outPath, rateOverride);
     }
 
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds> (

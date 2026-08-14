@@ -46,6 +46,10 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    // The oversampling factor actually running (may differ from the Quality
+    // choice after the sample-rate cap / offline boost). For the Quality tooltip.
+    int getEffectiveOversampling() const noexcept { return core.getEffectiveFactor(); }
+
     juce::AudioProcessorValueTreeState apvts;
 
 private:
@@ -65,8 +69,13 @@ private:
     // All character lives here. The processor only marshals parameters.
     notsure::LimiterCore core;
 
+    // Bypass delay so the bypassed signal carries the same latency we report.
+    // Power of two > the 36-sample reported latency, so the wrap is a mask.
+    static constexpr int kBypassRing = 64;
+    std::array<std::array<float, kBypassRing>, 2> bypassDelay {};
+    int bypassWritePos = 0;
+
     double currentSampleRate = 44100.0;
-    int    reportedLatency   = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NotSureProcessor)
 };

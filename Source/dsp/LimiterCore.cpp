@@ -140,6 +140,10 @@ void LimiterCore::reset()
     std::fill (std::begin (dryDelayR), std::end (dryDelayR), 0.0f);
     dryWritePos = 0;
 
+    std::fill (std::begin (wetDelayL), std::end (wetDelayL), 0.0f);
+    std::fill (std::begin (wetDelayR), std::end (wetDelayR), 0.0f);
+    wetWritePos = 0;
+
     oversamplerL.reset();
     oversamplerR.reset();
 }
@@ -201,8 +205,18 @@ void LimiterCore::updateCoefficients()
                                                    std::clamp (params.crunch, 0.0f, 10.0f)))
                     : 1.0f;
 
-    oversamplerL.setFactor (params.quality);
-    oversamplerR.setFactor (params.quality);
+    // Effective oversampling: the requested factor, capped by sample rate, and
+    // boosted to the cap ceiling during an offline render - but a deliberate 1x
+    // is left alone, because its aliasing is the sound. setFactor only resets
+    // the halfband filters when the number actually changes, so switching factor
+    // (e.g. when a bounce starts) clicks at most once, not every block.
+    const int cap = capForSampleRate (sampleRate);
+    const int effective = (params.offline && params.quality > 1)
+                            ? cap
+                            : std::min (params.quality, cap);
+
+    oversamplerL.setFactor (effective);
+    oversamplerR.setFactor (effective);
 
     updateReleaseCoefficient();
 
@@ -245,7 +259,11 @@ void LimiterCore::process (float* left, float* right, int numSamples)
     if (coefficientsDirty)
         updateCoefficients();
 
-    const int latency = oversamplerL.getLatencySamples();
+    // The oversampler adds this many base-rate samples at the current factor;
+    // the wet path is padded by the remainder so the total is always
+    // kFixedLatency, and the dry delay matches at the full amount.
+    const int oversamplerLatency = oversamplerL.getLatencySamples();
+    const int wetPad = kFixedLatency - oversamplerLatency;
 
     // The output stage. Asymmetry comes from the DC offset pushed in before
     // the saturation, which biases the curve and generates even harmonics;
@@ -361,20 +379,33 @@ void LimiterCore::process (float* left, float* right, int numSamples)
         outL *= smAutoGain;
         outR *= smAutoGain;
 
-        // --- dry path, delay-matched ------------------------------------------
+        // --- pad the wet path up to the fixed latency -------------------------
+        //
+        // The oversampler already delayed the wet by oversamplerLatency; add the
+        // remainder so its total is kFixedLatency, matching the dry below.
+        wetDelayL[wetWritePos] = outL;
+        wetDelayR[wetWritePos] = outR;
+
+        const int wetRead = (wetWritePos - wetPad + kMaxLatency) % kMaxLatency;
+        const float paddedWetL = wetDelayL[wetRead];
+        const float paddedWetR = wetDelayR[wetRead];
+
+        wetWritePos = (wetWritePos + 1) % kMaxLatency;
+
+        // --- dry path, delayed to the same fixed latency ---------------------
 
         dryDelayL[dryWritePos] = dryL;
         dryDelayR[dryWritePos] = dryR;
 
-        const int readPos = (dryWritePos - latency + kMaxLatency) % kMaxLatency;
+        const int readPos = (dryWritePos - kFixedLatency + kMaxLatency) % kMaxLatency;
         const float alignedDryL = dryDelayL[readPos];
         const float alignedDryR = dryDelayR[readPos];
 
         dryWritePos = (dryWritePos + 1) % kMaxLatency;
 
         const float smDry = 1.0f - smWet;
-        left[n]  = (outL * smWet + alignedDryL * smDry) * smTrim;
-        right[n] = (outR * smWet + alignedDryR * smDry) * smTrim;
+        left[n]  = (paddedWetL * smWet + alignedDryL * smDry) * smTrim;
+        right[n] = (paddedWetR * smWet + alignedDryR * smDry) * smTrim;
     }
 }
 

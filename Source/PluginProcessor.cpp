@@ -27,10 +27,14 @@ void NotSureProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 
     core.prepare (sampleRate);
 
-    // The oversampler introduces filter latency. The core delay-matches its
-    // own dry path; this tells the host so the whole track stays aligned.
-    reportedLatency = core.getLatencySamples();
-    setLatencySamples (reportedLatency);
+    for (auto& ch : bypassDelay)
+        ch.fill (0.0f);
+    bypassWritePos = 0;
+
+    // Fixed latency, reported once and never changed: the core pads every factor
+    // up to the same total. A moving latency would make the host re-align the
+    // track and could shift an offline bounce by a few samples.
+    setLatencySamples (core.getLatencySamples());
 }
 
 void NotSureProcessor::releaseResources()
@@ -65,10 +69,31 @@ void NotSureProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (int ch = totalIn; ch < totalOut; ++ch)
         buffer.clear (ch, 0, buffer.getNumSamples());
 
-    // Bypass: leave the buffer as it came in. The same parameter is handed to
-    // the host via getBypassParameter(), so its bypass button lands here too.
+    // Bypass. The signal still has to come out delayed by exactly the latency
+    // we report (36), or the host's latency compensation shifts the bypassed
+    // audio against everything else - a bounce would not line up against a
+    // bypassed reference. So pass through a matching delay rather than returning
+    // the buffer untouched. The same parameter is handed to the host via
+    // getBypassParameter(), so its bypass button lands here too.
     if (bypassParam->load() > 0.5f)
+    {
+        const int latency = getLatencySamples();
+        const int numCh   = juce::jmin (totalOut, 2);
+        const int n       = buffer.getNumSamples();
+
+        for (int i = 0; i < n; ++i)
+        {
+            const int readPos = (bypassWritePos - latency + kBypassRing) & (kBypassRing - 1);
+            for (int ch = 0; ch < numCh; ++ch)
+            {
+                auto* d = buffer.getWritePointer (ch);
+                bypassDelay[(size_t) ch][(size_t) bypassWritePos] = d[i];
+                d[i] = bypassDelay[(size_t) ch][(size_t) readPos];
+            }
+            bypassWritePos = (bypassWritePos + 1) & (kBypassRing - 1);
+        }
         return;
+    }
 
     // --- DSP chain -----------------------------------------------------------
     // Stage 1: feedback limiter with charge-dependent release.
@@ -93,6 +118,10 @@ void NotSureProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     p.mix      = mixParam->load();
     p.trimDb   = trimParam->load();
 
+    // Read per block: hosts flip this when a bounce starts and ends. Offline,
+    // the core runs the highest factor the sample-rate cap allows.
+    p.offline  = isNonRealtime();
+
     core.setParams (p);
 
     auto* left  = buffer.getWritePointer (0);
@@ -100,14 +129,7 @@ void NotSureProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     core.process (left, right, buffer.getNumSamples());
 
-    // Quality changes the filter delay. The host needs to hear about it, but
-    // only when it actually changes - calling this every block would spam the
-    // host with restart requests.
-    if (const auto latency = core.getLatencySamples(); latency != reportedLatency)
-    {
-        reportedLatency = latency;
-        setLatencySamples (latency);
-    }
+    // Latency is fixed (reported once in prepareToPlay); nothing to update here.
 }
 
 juce::AudioProcessorEditor* NotSureProcessor::createEditor()
