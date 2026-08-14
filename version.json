@@ -1,5 +1,5 @@
 {
-  "version": "0.8.2",
+  "version": "0.8.4",
   "url": "https://github.com/hitrows/not-sure/releases/latest",
-  "notes": "Beta 0.8.2 — update-check test build"
+  "notes": "Beta 0.8.4 — universal binary fix, oversampling, state versioning"
 }
