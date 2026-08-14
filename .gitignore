@@ -2,3 +2,9 @@ build/
 dist/
 .DS_Store
 .claude/
+
+# Private half of the licensing signing key (LICENCE-SPEC.md). It should
+# never be inside this repo at all - it lives at ~/Private/notsure-signing.key
+# - but this catches it anyway if that ever slips, wherever it ends up.
+notsure-signing.key
+licence.txt

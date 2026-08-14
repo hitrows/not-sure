@@ -4,12 +4,13 @@
 // stateSchema attribute), and an out-of-range value. Prints PASS/FAIL per
 // case and exits non-zero if anything fails.
 //
-// Links against the already-built ${PROJECT_NAME} static library (see
-// CMakeLists.txt) rather than recompiling PluginProcessor.cpp here, so every
+// Recompiles the same sources as the plugin target (see CMakeLists.txt),
+// borrowing ${PROJECT_NAME}'s COMPILE_DEFINITIONS property so every
 // JucePlugin_* macro it needs is exactly the one the real plugin was built
 // with - no hand-picked, easy-to-drift subset.
 
 #include "../Source/PluginProcessor.h"
+#include "../Source/Licence.h"
 
 #include <iostream>
 #include <random>
@@ -71,6 +72,15 @@ int main()
     // always brings one up before touching the processor; this is the console
     // equivalent.
     juce::ScopedJuceInitialiser_GUI juceInit;
+
+    // Informational, not a check: constructing the first processor triggers
+    // LicenceChecker's one-shot read (LICENCE-SPEC.md), against whatever is
+    // actually at ~/Library/Application Support/Hitrows/Not Sure/licence.txt
+    // on this machine right now, verified with the real embedded public key.
+    // Prints the same status the version-screw tooltip would show - a way to
+    // confirm the embedded key actually matches a real issued licence without
+    // needing to hover over the plugin in a host.
+    std::cout << "licence status: " << notsure::LicenceChecker::getInstance().getStatusText() << "\n\n";
 
     // 1: empty block.
     {

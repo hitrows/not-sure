@@ -4,6 +4,7 @@
 
 #include "PluginProcessor.h"
 #include "UpdateChecker.h"
+#include "Licence.h"
 
 // ---------------------------------------------------------------------------
 // Pointer-only look and feel.

@@ -18,7 +18,7 @@ set(PLUGIN_CODE         Nsur)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum macOS version")
 set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build architectures")
 
-project(${PROJECT_NAME} VERSION 0.8.4)
+project(${PROJECT_NAME} VERSION 0.9.0)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -86,6 +86,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
     Source/UpdateChecker.cpp
+    Source/Licence.cpp
     Source/dsp/LimiterCore.cpp
     Source/dsp/Oversampler.cpp)
 
@@ -100,6 +101,7 @@ target_link_libraries(${PROJECT_NAME}
         NotSureAssets
         juce::juce_audio_utils
         juce::juce_dsp
+        juce::juce_cryptography
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
@@ -141,6 +143,7 @@ add_executable(notsure-state-test
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
     Source/UpdateChecker.cpp
+    Source/Licence.cpp
     Source/dsp/LimiterCore.cpp
     Source/dsp/Oversampler.cpp)
 
@@ -152,12 +155,55 @@ target_link_libraries(notsure-state-test
         NotSureAssets
         juce::juce_audio_utils
         juce::juce_dsp
+        juce::juce_cryptography
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
 
 set_target_properties(notsure-state-test PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY         "${CMAKE_BINARY_DIR}/tools"
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG   "${CMAKE_BINARY_DIR}/tools"
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/tools"
+    XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED NO)
+
+# ---------------------------------------------------------------------------
+# make-licence
+#
+# Generates the signing key pair (once) and issues licence.txt files
+# (LICENCE-SPEC.md). Cryptography-only - no audio_processors, no GUI - so it
+# builds fast like notsure-render.
+# ---------------------------------------------------------------------------
+add_executable(make-licence
+    tools/make-licence.cpp
+    Source/Licence.cpp)
+
+target_link_libraries(make-licence PRIVATE
+    juce::juce_core
+    juce::juce_cryptography)
+
+set_target_properties(make-licence PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY         "${CMAKE_BINARY_DIR}/tools"
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG   "${CMAKE_BINARY_DIR}/tools"
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/tools"
+    XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED NO)
+
+# ---------------------------------------------------------------------------
+# notsure-licence-test
+#
+# Feeds signLicence/verifyLicence the cases LICENCE-SPEC.md acceptance 1-5
+# ask for, for real, with throwaway keys - never the real embedded public key
+# or the real private key. Cryptography-only, same spirit as make-licence.
+# ---------------------------------------------------------------------------
+add_executable(notsure-licence-test
+    tools/notsure-licence-test.cpp
+    Source/Licence.cpp)
+
+target_link_libraries(notsure-licence-test PRIVATE
+    juce::juce_core
+    juce::juce_cryptography)
+
+set_target_properties(notsure-licence-test PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY         "${CMAKE_BINARY_DIR}/tools"
     RUNTIME_OUTPUT_DIRECTORY_DEBUG   "${CMAKE_BINARY_DIR}/tools"
     RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/tools"

@@ -68,17 +68,21 @@ namespace
         }
     };
 
-    // Bottom-right screw: hovering it shows the plugin version as a tooltip.
-    // A small easter egg, not a control - no cursor change, nothing painted,
-    // no click behaviour. The hit area is the circle inscribed in the tile,
-    // not the square tile itself: the panel corner and the window's own
-    // resize edge are close by here, and a square would steal clicks meant
-    // for the edge.
+    // Bottom-right screw: hovering it shows the plugin version and licence
+    // status as a tooltip (LICENCE-SPEC.md part 2). A small easter egg, not a
+    // control - no cursor change, nothing painted, no click behaviour. The
+    // hit area is the circle inscribed in the tile, not the square tile
+    // itself: the panel corner and the window's own resize edge are close by
+    // here, and a square would steal clicks meant for the edge.
     class VersionScrew final : public juce::Component,
                                public juce::TooltipClient
     {
     public:
-        juce::String getTooltip() override { return JucePlugin_VersionString; }
+        juce::String getTooltip() override
+        {
+            return juce::String (JucePlugin_VersionString) + "\n"
+                 + notsure::LicenceChecker::getInstance().getStatusText();
+        }
 
         bool hitTest (int x, int y) override
         {

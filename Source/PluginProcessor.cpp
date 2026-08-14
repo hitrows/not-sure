@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "Licence.h"
 
 namespace
 {
@@ -25,6 +26,12 @@ NotSureProcessor::NotSureProcessor()
     attackParam   = apvts.getRawParameterValue (ParamID::attackMode);
     bypassParam   = apvts.getRawParameterValue (ParamID::bypass);
     qualityParam  = apvts.getRawParameterValue (ParamID::oversampling);
+
+    // Reads licence.txt once (LICENCE-SPEC.md): a local file read, not
+    // network, so - unlike UpdateChecker - there is no reason to defer this
+    // past the processor constructor. By the time an editor opens the answer
+    // is already cached.
+    notsure::LicenceChecker::getInstance();
 }
 
 void NotSureProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
