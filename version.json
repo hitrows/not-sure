@@ -1,5 +1,5 @@
 {
-  "version": "0.9.3",
+  "version": "0.9.4",
   "url": "https://github.com/hitrows/not-sure/releases/latest",
-  "notes": "Beta 0.9.3 — auto gain now actually matches output level to input"
+  "notes": "Beta 0.9.4 — reverted gain structure back to 0.9.1's sound"
 }
