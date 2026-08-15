@@ -29,8 +29,13 @@ jobs:
           path: build/_deps/juce-src
           key: windows-juce-8.0.15
 
+      # No -G: naming a specific Visual Studio generator ("Visual Studio 17
+      # 2022") failed here once already because CMake couldn't find an
+      # instance under that exact name on the runner - whatever GitHub
+      # actually has installed drifts over time. Leaving the generator
+      # unspecified lets CMake auto-detect it instead.
       - name: Configure
-        run: cmake -B build -G "Visual Studio 17 2022" -A x64
+        run: cmake -B build -A x64
 
       - name: Build (Release, VST3 only)
         run: cmake --build build --config Release --target NotSure_VST3
