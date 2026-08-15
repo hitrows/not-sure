@@ -18,10 +18,22 @@ set(PLUGIN_CODE         Nsur)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum macOS version")
 set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build architectures")
 
-project(${PROJECT_NAME} VERSION 0.9.0)
+project(${PROJECT_NAME} VERSION 0.9.1)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# ---------------------------------------------------------------------------
+# Windows build (WINDOWS-SPEC.md). AU does not exist off Apple platforms, and
+# Standalone exists only for local auditioning on the Mac, so neither belongs
+# in a Windows build. Presets and the installer are macOS-only for now too -
+# see README-WINDOWS.md.
+# ---------------------------------------------------------------------------
+if (APPLE)
+    set(NOTSURE_FORMATS AU VST3 Standalone)
+else()
+    set(NOTSURE_FORMATS VST3)
+endif()
 
 # ---------------------------------------------------------------------------
 # JUCE. FetchContent clones it into the build dir, so nothing is vendored
@@ -53,11 +65,21 @@ juce_add_plugin(${PROJECT_NAME}
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
 
     # Drops the built .component / .vst3 straight into ~/Library/Audio/Plug-Ins
-    COPY_PLUGIN_AFTER_BUILD     TRUE
+    # for local auditioning. On Windows CI this would instead try (and likely
+    # fail without elevation) to write into Program Files for an artifact
+    # nobody needs copied anywhere - the workflow zips the build output itself.
+    COPY_PLUGIN_AFTER_BUILD     ${APPLE}
 
-    # Standalone is here for the tuning phase - it avoids a DAW rescan on
-    # every rebuild. Drop it before release if you want AU only.
-    FORMATS                     AU VST3 Standalone)
+    FORMATS                     ${NOTSURE_FORMATS})
+
+if (WIN32)
+    # std::min/std::max collide with the min/max macros windows.h defines
+    # otherwise; WIN32_LEAN_AND_MEAN keeps windows.h from pulling in the rest
+    # of the stuff nothing here needs.
+    target_compile_definitions(${PROJECT_NAME} PUBLIC
+        NOMINMAX
+        WIN32_LEAN_AND_MEAN)
+endif()
 
 # ---------------------------------------------------------------------------
 # Binary assets
@@ -180,6 +202,7 @@ add_executable(make-licence
 
 target_link_libraries(make-licence PRIVATE
     juce::juce_core
+    juce::juce_data_structures
     juce::juce_cryptography)
 
 set_target_properties(make-licence PROPERTIES
@@ -201,6 +224,7 @@ add_executable(notsure-licence-test
 
 target_link_libraries(notsure-licence-test PRIVATE
     juce::juce_core
+    juce::juce_data_structures
     juce::juce_cryptography)
 
 set_target_properties(notsure-licence-test PROPERTIES

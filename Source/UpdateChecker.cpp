@@ -1,4 +1,5 @@
 #include "UpdateChecker.h"
+#include "AppPaths.h"
 
 namespace notsure
 {
@@ -73,12 +74,11 @@ UpdateChecker::~UpdateChecker()
 
 juce::PropertiesFile::Options UpdateChecker::settingsOptions()
 {
-    juce::PropertiesFile::Options o;
-    o.applicationName     = "settings";
-    o.folderName          = "Hitrows/Not Sure";
-    o.filenameSuffix      = "xml";
-    o.osxLibrarySubFolder = "Application Support";
-    return o;   // ~/Library/Application Support/Hitrows/Not Sure/settings.xml
+    auto o = baseAppDataOptions();
+    o.applicationName = "settings";
+    o.filenameSuffix  = "xml";
+    return o;   // ~/Library/Application Support/Hitrows/Not Sure/settings.xml on
+                // macOS, %APPDATA%\Hitrows\Not Sure\settings.xml on Windows.
 }
 
 void UpdateChecker::start (const juce::String& lv)

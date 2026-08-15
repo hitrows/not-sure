@@ -1,4 +1,5 @@
 #include "Licence.h"
+#include "AppPaths.h"
 
 namespace notsure
 {
@@ -70,8 +71,9 @@ LicenceChecker& LicenceChecker::getInstance()
 
 LicenceChecker::LicenceChecker()
 {
-    const auto file = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
-                          .getChildFile ("Application Support/Hitrows/Not Sure/licence.txt");
+    // ~/Library/Application Support/Hitrows/Not Sure/licence.txt on macOS,
+    // %APPDATA%\Hitrows\Not Sure\licence.txt on Windows - see AppPaths.h.
+    const auto file = getAppDataFolder().getChildFile ("licence.txt");
 
     statusText = file.existsAsFile()
                      ? verifyLicence (file.loadFileAsString(), juce::RSAKey (kPublicKey))

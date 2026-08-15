@@ -1,0 +1,61 @@
+name: Windows VST3
+
+# Builds the Windows VST3 on a real Windows machine we never have to own -
+# see WINDOWS-SPEC.md. AU can't be built here (Apple-only) and Standalone
+# isn't needed off macOS, so CMakeLists.txt only asks for VST3 on this
+# platform. This produces a build that compiles, not a build that has been
+# used - the actual test pass happens by hand, on a Windows laptop.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The JUCE git history is large; without this every run re-clones it,
+      # which is minutes per build for something that only changes when
+      # CMakeLists.txt's GIT_TAG does. If you bump that tag, bump this key too
+      # - a stale cache would otherwise silently keep serving the old JUCE.
+      - name: Cache JUCE clone
+        uses: actions/cache@v4
+        with:
+          path: build/_deps/juce-src
+          key: windows-juce-8.0.15
+
+      - name: Configure
+        run: cmake -B build -G "Visual Studio 17 2022" -A x64
+
+      - name: Build (Release, VST3 only)
+        run: cmake --build build --config Release --target NotSure_VST3
+
+      - name: Stage the artifact
+        shell: pwsh
+        run: |
+          $stage = "dist-windows"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item -Recurse "build/NotSure_artefacts/Release/VST3/Not Sure.vst3" "$stage/"
+          @"
+          Not Sure - Windows beta VST3
+
+          Copy "Not Sure.vst3" into:
+
+            C:\Program Files\Common Files\VST3
+
+          This build is unsigned, so Windows SmartScreen will likely warn the
+          first time you open it - click "More info" then "Run anyway".
+
+          No factory presets on Windows yet - coming in a later release.
+          "@ | Out-File -Encoding utf8 "$stage/README.txt"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NotSure-Windows-VST3
+          path: dist-windows

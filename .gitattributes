@@ -1,0 +1,5 @@
+# Normalise line endings on checkout regardless of platform - the Windows CI
+# runner and any future Windows contributor would otherwise see whatever mix
+# of CRLF/LF each file happens to carry, which MSVC is pickier about than
+# Clang. See WINDOWS-SPEC.md.
+* text=auto eol=lf
