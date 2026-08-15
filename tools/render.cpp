@@ -13,7 +13,9 @@
 #include "../Source/dsp/LimiterCore.h"
 #include "WavFile.h"
 
+#include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -35,6 +37,8 @@ namespace
             << "  --quality <1|2|4>     oversampling; 1 aliases   (default 4)\n"
             << "  --offline            simulate an offline bounce (max factor)\n"
             << "  --rate <hz>          override the processing sample rate\n"
+            << "  --stats              print peak/rms/crest/%-above-90%-of-peak\n"
+            << "                        and raw samples around the loudest point\n"
             << "  --sweep  <param> <from> <to> <steps>\n"
             << "                        render one file per value; output names\n"
             << "                        get a numeric suffix\n";
@@ -52,10 +56,73 @@ namespace
         return stem + buffer + ext;
     }
 
+    // GAIN-FIX-SPEC.md acceptance 1/2/4: measure clipping on the rendered
+    // file rather than assuming it from the code. "Time above 90% of peak"
+    // is the flat-topping proxy the spec's own tables use - a limiter's
+    // output only grazes its peak briefly, a clipped square wave sits there.
+    void printStats (const wavio::AudioFile& file)
+    {
+        const int n = file.numSamples();
+        if (n == 0)
+            return;
+
+        float peak = 0.0f;
+        int peakIndex = 0;
+        bool peakInRight = false;
+        double sumSq = 0.0;
+
+        auto scan = [&] (const std::vector<float>& ch, bool isRight)
+        {
+            for (int i = 0; i < n; ++i)
+            {
+                const float a = std::fabs (ch[i]);
+                sumSq += static_cast<double> (ch[i]) * ch[i];
+                if (a > peak) { peak = a; peakIndex = i; peakInRight = isRight; }
+            }
+        };
+        scan (file.left, false);
+        scan (file.right, true);
+
+        const double rms = std::sqrt (sumSq / (2.0 * n));
+        const float peakDb  = 20.0f * std::log10 (std::max (peak, 1.0e-9f));
+        const float rmsDb   = 20.0f * std::log10 (std::max (static_cast<float> (rms), 1.0e-9f));
+        const float crestDb = peakDb - rmsDb;
+
+        const float knee = 0.9f * peak;
+        long above = 0;
+        for (int i = 0; i < n; ++i)
+        {
+            if (std::fabs (file.left[i])  >= knee) ++above;
+            if (std::fabs (file.right[i]) >= knee) ++above;
+        }
+        const double pctAbove90 = 100.0 * static_cast<double> (above) / (2.0 * n);
+
+        std::cout << "  stats: peak " << peakDb << " dBFS, rms " << rmsDb
+                  << " dBFS, crest " << crestDb << " dB, "
+                  << pctAbove90 << "% >= 90% of peak\n";
+
+        // A short window of raw samples around the loudest point - printed so
+        // it can be eyeballed for shape (a limiter) versus a flat run at a
+        // constant value (a clipper). From whichever channel the peak sample
+        // actually came from - printing the other channel at that index was
+        // a bug in an earlier version of this tool and showed an unrelated,
+        // usually much quieter, window.
+        const auto& peakChannel = peakInRight ? file.right : file.left;
+        const int half  = 24;
+        const int begin = std::max (0, peakIndex - half);
+        const int end   = std::min (n, peakIndex + half);
+        std::cout << "  samples around peak (" << (peakInRight ? "R" : "L") << "), "
+                  << begin << ".." << (end - 1) << ":\n   ";
+        for (int i = begin; i < end; ++i)
+            std::cout << ' ' << peakChannel[i];
+        std::cout << '\n';
+    }
+
     bool renderOnce (const wavio::AudioFile& source,
                      const notsure::LimiterCore::Params& params,
                      const std::string& outPath,
-                     double rateOverride = 0.0)
+                     double rateOverride = 0.0,
+                     bool printStatsFlag = false)
     {
         wavio::AudioFile result = source;
 
@@ -97,6 +164,10 @@ namespace
                   << (params.offline ? ", offline" : "")
                   << " -> running " << core.getEffectiveFactor() << "x"
                   << ", latency " << core.getLatencySamples() << "]\n";
+
+        if (printStatsFlag)
+            printStats (result);
+
         return true;
     }
 }
@@ -118,6 +189,7 @@ int main (int argc, char** argv)
     float sweepFrom = 0.0f, sweepTo = 0.0f;
     int sweepSteps = 0;
     double rateOverride = 0.0;
+    bool printStatsFlag = false;
 
     for (int i = 3; i < argc; ++i)
     {
@@ -135,6 +207,7 @@ int main (int argc, char** argv)
         else if (arg == "--quality") params.quality = static_cast<int> (nextFloat());
         else if (arg == "--offline") params.offline = true;
         else if (arg == "--rate")    rateOverride  = static_cast<double> (nextFloat());
+        else if (arg == "--stats")   printStatsFlag = true;
         else if (arg == "--sag")    params.sag      = nextFloat();
         else if (arg == "--attack") params.attackMs = nextFloat();
         else if (arg == "--mix")    params.mix      = nextFloat();
@@ -199,12 +272,12 @@ int main (int argc, char** argv)
                 return 1;
             }
 
-            ok = renderOnce (source, params, suffixed (outPath, step, value), rateOverride) && ok;
+            ok = renderOnce (source, params, suffixed (outPath, step, value), rateOverride, printStatsFlag) && ok;
         }
     }
     else
     {
-        ok = renderOnce (source, params, outPath, rateOverride);
+        ok = renderOnce (source, params, outPath, rateOverride, printStatsFlag);
     }
 
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds> (

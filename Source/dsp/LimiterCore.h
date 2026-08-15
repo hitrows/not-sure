@@ -93,6 +93,24 @@ private:
     static constexpr float kDriveFloorDb  = -42.0f;
     static constexpr float kDriveSpanDb   =   5.2f;   // reaches +10 dB at 10
 
+    // Makeup returns the limiter's output - held at the threshold whenever
+    // the limiter is actually engaged - back up toward full scale, with this
+    // much held in reserve. Tied to the THRESHOLD, not the drive floor above:
+    // an earlier version used makeup = -kDriveFloorDb (+42 dB), which put the
+    // held output at kThresholdDb + 42 = +12 dBFS and left softCeiling doing
+    // the limiter's job as a brick-wall clipper rather than catching the odd
+    // transient. See GAIN-FIX-SPEC.md. Do not re-tie this to the drive floor.
+    //
+    // GAIN-FIX-SPEC.md suggested starting at 6 dB; measured on notsure-render
+    // at the spec's crush 6.9 / crunch 4.5 / attack 1.3 ms, 6 dB still left
+    // 1.61% of the signal sitting at 90%+ of peak (target: under 1%). Tuned up
+    // from there against the repo's own loop.wav: 8 dB -> 0.63%, 9 -> 0.21%,
+    // 10 -> 0.09%. Settled on 10 for comfortable margin under the target
+    // rather than the bare minimum: the acceptance number is source-dependent
+    // (the spec's own loop hit the target already at 6 dB headroom), so this
+    // is not a universal constant, just what this test material needed.
+    static constexpr float kMakeupHeadroomDb = 10.0f;
+
     // Depth of reduction, in dB, that counts as "fully charged".
     static constexpr float kFullChargeDb  =  30.0f;
 

@@ -150,9 +150,19 @@ hit stays put is what "inflates the room".
   that feedforward has to fake.
 - **Fixed threshold at −30 dBFS, effectively infinite ratio.** There is no
   threshold control; Crush drives into it. That is the whole interface idea.
-- **Drive spans −42 to +10 dB, makeup is exactly minus the drive floor**, so
-  Crush 0 passes at unity. An earlier version started drive at unity, which
-  left normal material 30 dB over the threshold and crushed hard at zero.
+- **Drive spans −42 to +10 dB**, so Crush 0 passes a full-scale signal down to
+  exactly the threshold and nothing is limited. An earlier version started
+  drive at unity, which left normal material 30 dB over the threshold and
+  crushed hard at zero.
+- **Makeup is tied to the threshold, with headroom — not to the drive floor.**
+  0.8.x–0.9.1 set makeup to exactly minus the drive floor (+42 dB), which put
+  the limiter's held output at +12 dBFS and left `softCeiling` doing the
+  limiter's job as a brick-wall clipper — measured at up to ~12% of a render
+  sitting in flat-topped clipping instead of being limited. Fixed in 0.9.2
+  (`GAIN-FIX-SPEC.md`): `kMakeupHeadroomDb`, currently 10 dB, tuned against a
+  measured render rather than assumed from the formula. Auto gain was
+  refitted from scratch against the new levels — do not reuse pre-0.9.2
+  auto-gain constants, they were fitted to the old, clipping behaviour.
 - **Sag drives release length via charge depth.** At 0 it collapses to a 0.2 s
   release; at 10 fully charged it reaches 20 s.
 - **Crunch is not decoration.** A 1.3 ms attack lets transients past the

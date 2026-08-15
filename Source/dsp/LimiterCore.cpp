@@ -72,24 +72,35 @@ namespace
     // parameter defaults instead and consequently boosted by 5 dB with every
     // knob at zero.
     //
-    // Fitted to measured output RMS over a crush x crunch grid on drum
-    // material. Max residual 0.9 dB. Fitted on one loop, so it is a good
-    // approximation rather than a guarantee - re-measure if the gain structure
-    // changes, because these numbers are specific to it.
+    // Fitted to measured output RMS over a crush x crunch grid (11x11, step 1)
+    // on the repo's own loop.wav, autoGain off, re-fitted for 0.9.2's makeup
+    // gain change (GAIN-FIX-SPEC.md - the old constants were fitted against
+    // the old, clipping makeup gain and stopped meaning anything the moment
+    // that changed). RMS residual 0.49 dB across the grid; worst case 1.45 dB
+    // at the low-crush/high-crunch corner (crush 0-4, crunch 8-10), confirmed
+    // by global optimisation (differential evolution) to be this 5-parameter
+    // model's actual best fit on this surface, not a local-minimum artifact -
+    // the new gain structure's surface just is not quite as well approximated
+    // by this shape as the old (clipped) one happened to be. Fitted on one
+    // loop, so it is a good approximation rather than a guarantee - re-measure
+    // if the gain structure changes again.
     inline float computeAutoGainDb (float crush, float crunch) noexcept
     {
         // Crush saturates: the limiter clamps, so past a point more drive adds
         // density rather than level. An exponential approach fits this far
         // better than a polynomial, which overshot by 6 dB at the top.
-        constexpr float kCrushMax = 31.8f;
-        constexpr float kCrushTau =  4.8f;
+        constexpr float kCrushMax = 42.1182f;
+        constexpr float kCrushTau =  6.6471f;
 
         // Crunch cuts level, and cuts harder the more Crush is already
         // pushing - the shaper compresses what it is fed. The cut is strongly
-        // nonlinear in Crunch itself.
-        constexpr float kCutBase  = 2.4f;
-        constexpr float kCutSlope = 0.44f;
-        constexpr float kCutPower = 2.25f;
+        // nonlinear in Crunch itself. kCutBase fitted just below zero - at
+        // crush 0, crunch alone very slightly adds level rather than cutting
+        // it, which is within the fit's own residual and not worth a special
+        // case.
+        constexpr float kCutBase  = -0.3132f;
+        constexpr float kCutSlope =  0.3053f;
+        constexpr float kCutPower =  2.6255f;
 
         const float crushTerm = kCrushMax * (1.0f - std::exp (-crush / kCrushTau));
         const float cutAmount = (kCutBase + kCutSlope * crushTerm)
@@ -171,7 +182,7 @@ void LimiterCore::updateCoefficients()
     // earlier version started the drive at unity, which left normal material
     // sitting 30 dB over the threshold and crushed hard even at zero.
     driveGain  = dbToGain (kDriveFloorDb + params.crush * kDriveSpanDb);
-    makeupGain = dbToGain (-kDriveFloorDb);
+    makeupGain = dbToGain (-kThresholdDb - kMakeupHeadroomDb);
     trimGain   = dbToGain (params.trimDb);
 
     wetAmount = std::clamp (params.mix, 0.0f, 100.0f) * 0.01f;
