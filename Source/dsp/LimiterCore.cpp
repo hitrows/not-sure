@@ -70,7 +70,9 @@ namespace
     // holds the whole range at roughly the level of the untouched signal
     // rather than at some louder setting. An earlier version referenced the
     // parameter defaults instead and consequently boosted by 5 dB with every
-    // knob at zero.
+    // knob at zero. This function returns the relative shape across the grid;
+    // the caller adds kUnityReferenceDb to actually land on unity at the
+    // reference point - see that constant for why the two are separate.
     //
     // Fitted to measured output RMS over a crush x crunch grid (11x11, step 1)
     // on the repo's own loop.wav, autoGain off, re-fitted for 0.9.2's makeup
@@ -213,7 +215,8 @@ void LimiterCore::updateCoefficients()
 
     autoGainLin = params.autoGain
                     ? dbToGain (computeAutoGainDb (std::clamp (params.crush,  0.0f, 10.0f),
-                                                   std::clamp (params.crunch, 0.0f, 10.0f)))
+                                                   std::clamp (params.crunch, 0.0f, 10.0f))
+                                + kUnityReferenceDb)
                     : 1.0f;
 
     // Effective oversampling: the requested factor, capped by sample rate, and

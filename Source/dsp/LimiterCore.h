@@ -85,11 +85,11 @@ private:
     // interface idea, inherited from the hardware's fixed-threshold design.
     static constexpr float kThresholdDb   = -30.0f;
 
-    // Drive and makeup are locked together: makeup is exactly minus the drive
-    // floor, so Crush 0 passes at unity. The floor also has to sit far enough
-    // below the threshold that full-scale material is not limited at zero -
-    // an earlier version used -30 dB, which put a 0 dBFS peak exactly on the
-    // threshold and clipped peaks with every knob down.
+    // The floor has to sit far enough below the threshold that full-scale
+    // material is not limited at Crush 0 - an earlier version used -30 dB,
+    // which put a 0 dBFS peak exactly on the threshold and clipped peaks with
+    // every knob down. Since 0.9.2 this no longer doubles as "the negative of
+    // makeup" - see kUnityReferenceDb below for why that stopped being true.
     static constexpr float kDriveFloorDb  = -42.0f;
     static constexpr float kDriveSpanDb   =   5.2f;   // reaches +10 dB at 10
 
@@ -110,6 +110,20 @@ private:
     // (the spec's own loop hit the target already at 6 dB headroom), so this
     // is not a universal constant, just what this test material needed.
     static constexpr float kMakeupHeadroomDb = 10.0f;
+
+    // Before 0.9.2, makeup was defined as exactly -kDriveFloorDb, which made
+    // Crush 0 unity gain automatically: driveGain * makeupGain always came to
+    // 0 dB by construction, whatever kDriveFloorDb happened to be. Tying
+    // makeup to the threshold instead broke that side effect - at Crush 0 the
+    // combined gain is now kDriveFloorDb - kThresholdDb - kMakeupHeadroomDb,
+    // measured at -39.29 dBFS RMS out for -17.13 dBFS RMS in on loop.wav, a
+    // ~22 dB gap that auto gain did not know to close (its own reference
+    // point, Crush 0, was silently no longer unity). This restores that
+    // reference so "auto gain on" means what it says: output level tracks
+    // input level, not just relative position across the crush x crunch grid.
+    // Self-updating if the three constants above ever move again - do not
+    // replace with a bare number.
+    static constexpr float kUnityReferenceDb = -kDriveFloorDb + kThresholdDb + kMakeupHeadroomDb;
 
     // Depth of reduction, in dB, that counts as "fully charged".
     static constexpr float kFullChargeDb  =  30.0f;
