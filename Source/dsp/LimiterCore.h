@@ -85,45 +85,13 @@ private:
     // interface idea, inherited from the hardware's fixed-threshold design.
     static constexpr float kThresholdDb   = -30.0f;
 
-    // The floor has to sit far enough below the threshold that full-scale
-    // material is not limited at Crush 0 - an earlier version used -30 dB,
-    // which put a 0 dBFS peak exactly on the threshold and clipped peaks with
-    // every knob down. Since 0.9.2 this no longer doubles as "the negative of
-    // makeup" - see kUnityReferenceDb below for why that stopped being true.
+    // Drive and makeup are locked together: makeup is exactly minus the drive
+    // floor, so Crush 0 passes at unity. The floor also has to sit far enough
+    // below the threshold that full-scale material is not limited at zero -
+    // an earlier version used -30 dB, which put a 0 dBFS peak exactly on the
+    // threshold and clipped peaks with every knob down.
     static constexpr float kDriveFloorDb  = -42.0f;
     static constexpr float kDriveSpanDb   =   5.2f;   // reaches +10 dB at 10
-
-    // Makeup returns the limiter's output - held at the threshold whenever
-    // the limiter is actually engaged - back up toward full scale, with this
-    // much held in reserve. Tied to the THRESHOLD, not the drive floor above:
-    // an earlier version used makeup = -kDriveFloorDb (+42 dB), which put the
-    // held output at kThresholdDb + 42 = +12 dBFS and left softCeiling doing
-    // the limiter's job as a brick-wall clipper rather than catching the odd
-    // transient. See GAIN-FIX-SPEC.md. Do not re-tie this to the drive floor.
-    //
-    // GAIN-FIX-SPEC.md suggested starting at 6 dB; measured on notsure-render
-    // at the spec's crush 6.9 / crunch 4.5 / attack 1.3 ms, 6 dB still left
-    // 1.61% of the signal sitting at 90%+ of peak (target: under 1%). Tuned up
-    // from there against the repo's own loop.wav: 8 dB -> 0.63%, 9 -> 0.21%,
-    // 10 -> 0.09%. Settled on 10 for comfortable margin under the target
-    // rather than the bare minimum: the acceptance number is source-dependent
-    // (the spec's own loop hit the target already at 6 dB headroom), so this
-    // is not a universal constant, just what this test material needed.
-    static constexpr float kMakeupHeadroomDb = 10.0f;
-
-    // Before 0.9.2, makeup was defined as exactly -kDriveFloorDb, which made
-    // Crush 0 unity gain automatically: driveGain * makeupGain always came to
-    // 0 dB by construction, whatever kDriveFloorDb happened to be. Tying
-    // makeup to the threshold instead broke that side effect - at Crush 0 the
-    // combined gain is now kDriveFloorDb - kThresholdDb - kMakeupHeadroomDb,
-    // measured at -39.29 dBFS RMS out for -17.13 dBFS RMS in on loop.wav, a
-    // ~22 dB gap that auto gain did not know to close (its own reference
-    // point, Crush 0, was silently no longer unity). This restores that
-    // reference so "auto gain on" means what it says: output level tracks
-    // input level, not just relative position across the crush x crunch grid.
-    // Self-updating if the three constants above ever move again - do not
-    // replace with a bare number.
-    static constexpr float kUnityReferenceDb = -kDriveFloorDb + kThresholdDb + kMakeupHeadroomDb;
 
     // Depth of reduction, in dB, that counts as "fully charged".
     static constexpr float kFullChargeDb  =  30.0f;
