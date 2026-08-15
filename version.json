@@ -1,5 +1,5 @@
 {
-  "version": "0.8.4",
+  "version": "0.9.1",
   "url": "https://github.com/hitrows/not-sure/releases/latest",
-  "notes": "Beta 0.8.4 — universal binary fix, oversampling, state versioning"
+  "notes": "Beta 0.9.1 — licensing, Windows VST3 (unverified beta)"
 }
